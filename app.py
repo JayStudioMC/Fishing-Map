@@ -212,5 +212,34 @@ if 'all_catches' in st.session_state:
                     ).add_to(m)
                 
                 st_folium(m, width=700, height=500)
+                
+                # --- 選択されたポイントの推移グラフ ---
+                if selected_point:
+                    st.divider()
+                    st.subheader(f"📈 {selected_point} の釣果推移（過去 {days_to_search} 日間）")
+                    
+                    # 日付ごとの集計
+                    daily_counts = {}
+                    for pt in map_points:
+                        if pt["name"] == selected_point:
+                            date_str = pt["date"]
+                            daily_counts[date_str] = daily_counts.get(date_str, 0) + 1
+                    
+                    import pandas as pd
+                    # グラフのX軸用に、指定期間の全日付リストを作成（釣果0件の日も表示するため）
+                    JST = timezone(timedelta(hours=+9), 'JST')
+                    today = datetime.now(JST).date()
+                    start_d = today - timedelta(days=days_to_search)
+                    
+                    date_list = [start_d + timedelta(days=x) for x in range((today - start_d).days + 1)]
+                    
+                    chart_data = []
+                    for d in date_list:
+                        d_str = d.strftime("%Y-%m-%d")
+                        chart_data.append({"日付": d, "釣果数": daily_counts.get(d_str, 0)})
+                        
+                    df_chart = pd.DataFrame(chart_data).set_index("日付")
+                    st.line_chart(df_chart)
+
             else:
                 st.info("位置情報付きの釣果がありませんでした。")
