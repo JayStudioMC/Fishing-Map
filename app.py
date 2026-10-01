@@ -82,7 +82,8 @@ if search_button:
         
         # ページネーションでデータを取得（最大30ページで安全ストップ）
         while keep_fetching and page <= 30:
-            url = f"https://anglers.jp/api/v2/results.json?keyword={query}&page={page}"
+            # order=caught_at を付与して釣れた日時が新しい順に強制ソートする
+            url = f"https://anglers.jp/api/v2/results.json?keyword={query}&order=caught_at&page={page}"
             req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
             
             try:
