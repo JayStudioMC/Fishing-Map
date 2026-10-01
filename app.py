@@ -109,6 +109,12 @@ if search_button:
                                     keep_fetching = False
                                     break
                                 
+                                # Anglersは「アジ」で検索してもメッキやアイブリ（近縁種や混獲）を返すため、
+                                # 厳密に魚種名が一致しているデータだけをカウントする
+                                catch_fish = catch.get('fish')
+                                if not catch_fish or catch_fish.get('name') != actual_fish_name:
+                                    continue
+                                
                                 all_catches.append(catch)
                         page += 1
                 except Exception as e:
@@ -154,6 +160,7 @@ if 'all_catches' in st.session_state:
         row1_col1, row1_col2 = st.columns([2, 3])
         
         selected_point = None
+        sorted_locs = sorted(locations_count.items(), key=lambda x: x[1], reverse=True)
         ranking_data = [{"ポイント名": name, "釣果数": count} for name, count in sorted_locs]
         
         with row1_col1:
