@@ -33,30 +33,38 @@ def get_fish_list():
 
 fish_list = get_fish_list()
 
-st.title("最近釣れているポイント検索 (モックアップ)")
+st.title("最近釣れているポイント検索")
 st.markdown("指定した魚種が指定期間内でよく釣れている場所を地図とランキングで表示します。")
 
-# 検索フォーム
-col1, col2, col3 = st.columns([2, 2, 1])
+# iOSのSafariでテキスト入力枠をタップした際に2回タップしないとキーボードが出ないバグの回避策
+st.html("""
+<style>
+div[data-baseweb="input"] > input {
+    cursor: text !important;
+}
+</style>
+""")
 
-with col1:
-    selected_fish = st.selectbox(
-        "魚種 (入力して検索可能)", 
-        fish_list, 
-        index=None,
-        placeholder="魚種を選択してください"
-    )
-
-with col2:
-    region_keyword = st.text_input("地域・キーワード (任意)", value="")
-
-# 期間選択（日数指定）
-days_to_search = st.number_input("収集する日数 (今日から遡る日数)", min_value=1, max_value=100, value=14, step=1)
-
-with col3:
-    st.write("")
-    st.write("")
-    search_button = st.button("検索する", use_container_width=True)
+# 検索フォームを st.form で囲むことで、スマホのキーボードの「確定/Go」ボタンで直接検索できるようにする
+with st.form("search_form"):
+    col1, col2 = st.columns([2, 2])
+    
+    with col1:
+        selected_fish = st.selectbox(
+            "魚種 (入力して検索可能)", 
+            fish_list, 
+            index=None,
+            placeholder="魚種を選択してください"
+        )
+    
+    with col2:
+        region_keyword = st.text_input("地域・キーワード (任意)", value="")
+    
+    # 期間選択（日数指定）
+    days_to_search = st.number_input("収集する日数 (今日から遡る日数)", min_value=1, max_value=100, value=14, step=1)
+    
+    # フォームの送信ボタン
+    search_button = st.form_submit_button("検索する", use_container_width=True)
 
 if search_button:
     if not selected_fish:
@@ -135,6 +143,7 @@ if 'all_catches' in st.session_state:
         
         # --- データ集計 ---
         locations_count = {}
+        area_urls = {}  # ポイント名 -> Anglersの「ポイント×魚種」ページURL
         map_points = []
         
         for catch in all_catches:
@@ -146,6 +155,10 @@ if 'all_catches' in st.session_state:
                 lng = area.get('lng')
                 
                 locations_count[area_name] = locations_count.get(area_name, 0) + 1
+                
+                # Anglers側でそのポイントの全釣果一覧を開くURL
+                if area_name not in area_urls and area.get('id'):
+                    area_urls[area_name] = f"https://anglers.jp/areas/{area['id']}"
                 
                 if lat and lng:
                     map_points.append({
@@ -161,23 +174,42 @@ if 'all_catches' in st.session_state:
         
         selected_point = None
         sorted_locs = sorted(locations_count.items(), key=lambda x: x[1], reverse=True)
-        ranking_data = [{"ポイント名": name, "釣果数": count} for name, count in sorted_locs]
+        ranking_data = [
+            {"ポイント名": name, "釣果数": count, "Anglers": area_urls.get(name)}
+            for name, count in sorted_locs
+        ]
         
         with row1_col1:
             st.subheader("釣果ランキング")
+            st.caption("行を選択 → 地図で場所を表示 ／ 「開く」→ Anglersで釣果を見る")
             
-            # DataFrame selection feature
+            # 行選択 = 地図で強調、リンク列 = Anglersを開く（動作を列で分ける）
             event = st.dataframe(
                 ranking_data,
                 use_container_width=True,
+                hide_index=True,
                 on_select="rerun",
-                selection_mode="single-row"
+                selection_mode="single-row",
+                column_config={
+                    "ポイント名": st.column_config.TextColumn("ポイント名"),
+                    "釣果数": st.column_config.NumberColumn("釣果数", width="small"),
+                    "Anglers": st.column_config.LinkColumn(
+                        "Anglers", display_text="開く ↗", width="small"
+                    ),
+                },
             )
             
             if event.selection.rows:
                 selected_idx = event.selection.rows[0]
                 selected_point = ranking_data[selected_idx]["ポイント名"]
                 st.info(f"選択中: {selected_point}")
+                # スマホでも押しやすい大きめのボタン
+                if area_urls.get(selected_point):
+                    st.link_button(
+                        f"Anglersで「{selected_point}」の釣果を見る ↗",
+                        area_urls[selected_point],
+                        use_container_width=True,
+                    )
                 
         with row1_col2:
             st.subheader("ポイントマップ (OpenStreetMap)")
@@ -216,7 +248,7 @@ if 'all_catches' in st.session_state:
                 # --- 選択されたポイントの推移グラフ ---
                 if selected_point:
                     st.divider()
-                    st.subheader(f"📈 {selected_point} の釣果推移（過去 {days_to_search} 日間）")
+                    st.subheader(f"{selected_point} の釣果推移（過去 {days_to_search} 日間）")
                     
                     # 日付ごとの集計
                     daily_counts = {}
